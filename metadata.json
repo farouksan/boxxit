@@ -1,0 +1,8 @@
+{
+  "name": "Boxxit- collect&share!",
+  "description": "A WhatsApp-inspired tool for collecting, organizing, and sharing links, videos, and files using the metaphor of cards and baskets.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
