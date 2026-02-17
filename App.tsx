@@ -37,10 +37,66 @@ import {
   Maximize2,
   CircleX,
   ArrowDownCircle,
-  Share2
+  Share2,
+  Video as VideoIcon,
+  GripVertical,
+  Download,
+  ExternalLink,
+  CopyIcon,
+  Upload,
+  FolderOpen,
+  ChevronRight,
+  Palette,
+  Globe
 } from 'lucide-react';
 import { AppState, Basket, Card, Activity, Scribble, Role, Member, ViewMode, ActivityType, User, Attachment } from './types';
 import { INITIAL_STATE, ME } from './mockData';
+
+// --- Constants ---
+
+const DESIGN_PRESETS = [
+  'https://api.dicebear.com/7.x/shapes/svg?seed=Summer',
+  'https://api.dicebear.com/7.x/shapes/svg?seed=Tech',
+  'https://api.dicebear.com/7.x/shapes/svg?seed=Work',
+  'https://api.dicebear.com/7.x/shapes/svg?seed=Food',
+  'https://api.dicebear.com/7.x/shapes/svg?seed=Travel',
+  'https://api.dicebear.com/7.x/shapes/svg?seed=Music',
+  'https://api.dicebear.com/7.x/shapes/svg?seed=Art',
+  'https://api.dicebear.com/7.x/shapes/svg?seed=Sport',
+  'https://api.dicebear.com/7.x/shapes/svg?seed=Idea',
+  'https://api.dicebear.com/7.x/shapes/svg?seed=Secret',
+];
+
+// --- Utils ---
+
+const processFile = async (file: File): Promise<Attachment> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      let type: Attachment['type'] = 'file';
+      if (file.type.startsWith('image/')) type = 'image';
+      else if (file.type.startsWith('video/')) type = 'video';
+      
+      resolve({
+        id: Math.random().toString(36).substr(2, 9),
+        type,
+        url: reader.result as string,
+        name: file.name
+      });
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
+const getLinkThumbnail = (url: string) => {
+  try {
+    // Using WordPress mshots for reliable free link thumbnails
+    const encodedUrl = encodeURIComponent(url);
+    return `https://s.wordpress.com/mshots/v1/${encodedUrl}?w=600`;
+  } catch (e) {
+    return null;
+  }
+};
 
 // --- Shared Components ---
 
@@ -88,10 +144,10 @@ const ScrollToBottomButton = ({ scrollRef }: { scrollRef: React.RefObject<HTMLDi
   return (
     <button 
       onClick={scrollToBottom}
-      className="fixed right-4 top-1/2 -translate-y-1/2 z-[60] bg-white/90 backdrop-blur shadow-lg border border-black/5 text-[#FF3B30] p-3 rounded-full active:scale-90 transition-all animate-bounce"
+      className="fixed right-4 top-1/2 -translate-y-1/2 z-[60] bg-white/90 backdrop-blur shadow-md border border-black/5 text-gray-400 p-2 rounded-full active:scale-90 transition-all"
       aria-label="Scroll to bottom"
     >
-      <ArrowDown size={24} strokeWidth={3} />
+      <ArrowDown size={16} strokeWidth={3} />
     </button>
   );
 };
@@ -212,49 +268,430 @@ const ConfirmDialog = ({ title, message, onConfirm, onCancel }: { title: string,
   );
 };
 
-// --- Chat Input ---
-
-const BoxChatInput = ({ basketId, dispatch }: { basketId: string, dispatch: any }) => {
-  const [text, setText] = useState('');
-  const handleSend = () => {
-    if (!text.trim()) return;
-    dispatch({ 
-      type: 'ADD_BASKET_SCRIBBLE', 
-      basketId, 
-      scribble: { id: Date.now().toString(), authorId: ME.id, authorName: ME.name, text: text.trim(), timestamp: Date.now() } 
-    });
-    setText('');
-  };
+const BasketPicker = ({ 
+  state, 
+  title, 
+  onSelect, 
+  onClose 
+}: { 
+  state: AppState, 
+  title: string, 
+  onSelect: (basketId: string) => void, 
+  onClose: () => void 
+}) => {
   return (
-    <div className="fixed bottom-[83px] left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-gray-100 p-3 z-50 flex items-center gap-2">
-      <input 
-        className="flex-1 bg-[#F2F2F7] rounded-full px-4 py-2 outline-none text-[15px] font-medium focus:bg-white transition-all border border-transparent focus:border-black/5" 
-        placeholder="Quick scribble..." 
-        value={text} 
-        onChange={e => setText(e.target.value)} 
-        onKeyDown={e => e.key === 'Enter' && handleSend()}
-      />
-      <button onClick={handleSend} className="bg-[#FF3B30] text-white p-2 rounded-full active:scale-90 transition-transform shadow-md"><Send size={18}/></button>
+    <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="bg-white w-full max-w-md rounded-t-[32px] sm:rounded-[32px] overflow-hidden shadow-2xl animate-slide-up flex flex-col max-h-[80vh]">
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-[18px] font-black text-gray-900">{title}</h3>
+          <button onClick={onClose} className="p-2 bg-gray-100 rounded-full text-gray-500 active:scale-90 transition-all"><X size={20}/></button>
+        </div>
+        <div className="overflow-y-auto p-4 space-y-2">
+          {state.baskets.filter(b => !b.isArchived).map(b => (
+            <button 
+              key={b.id}
+              onClick={() => onSelect(b.id)}
+              className="w-full p-4 flex items-center gap-4 bg-[#F2F2F7] rounded-2xl active:bg-gray-200 transition-colors text-left"
+            >
+              <div className="w-10 h-10 rounded-xl bg-white border border-black/5 flex items-center justify-center overflow-hidden">
+                {b.image ? <img src={b.image} className="w-full h-full object-cover" /> : <Package className="text-gray-300" size={20}/>}
+              </div>
+              <span className="font-bold text-gray-800">{b.title}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Attachment Components ---
+
+const AttachmentFullView = ({ 
+  attachment, 
+  onClose, 
+  onDelete 
+}: { 
+  attachment: Attachment, 
+  onClose: () => void, 
+  onDelete?: () => void 
+}) => {
+  const [showMenu, setShowMenu] = useState(false);
+
+  const handleShare = async () => {
+    try {
+      await navigator.share({
+        title: attachment.name || 'Check this out!',
+        url: attachment.url
+      });
+    } catch (e) {
+      alert('Sharing not supported on this browser.');
+    }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(attachment.url);
+    alert('Link copied to clipboard!');
+  };
+
+  return (
+    <div className="fixed inset-0 z-[120] bg-black flex flex-col animate-fade-in">
+      <div className="flex items-center justify-between p-4 bg-black/40 backdrop-blur-md absolute top-0 left-0 right-0 z-10">
+        <button onClick={onClose} className="text-white p-2 rounded-full active:bg-white/10 transition-colors"><ChevronLeft size={24}/></button>
+        <span className="text-white font-black text-xs uppercase tracking-widest truncate max-w-[200px]">{attachment.name || attachment.type}</span>
+        <button onClick={() => setShowMenu(!showMenu)} className="text-white p-2 rounded-full active:bg-white/10 transition-colors"><MoreHorizontal size={24}/></button>
+      </div>
+
+      <div className="flex-1 flex items-center justify-center p-4">
+        {attachment.type === 'image' ? (
+          <img src={attachment.url} className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" alt="" />
+        ) : attachment.type === 'video' ? (
+          <video src={attachment.url} controls className="max-w-full max-h-full rounded-lg shadow-2xl" />
+        ) : attachment.type === 'link' ? (
+           <div className="w-full h-full max-w-lg max-h-[80%] bg-white rounded-[40px] overflow-hidden shadow-2xl flex flex-col">
+              <div className="flex-1 bg-gray-100 flex items-center justify-center overflow-hidden">
+                <img src={getLinkThumbnail(attachment.url) || ''} className="w-full h-full object-cover" alt="" />
+              </div>
+              <div className="p-8 space-y-4">
+                <div className="flex items-center gap-3 text-green-500">
+                  <Globe size={24} />
+                  <span className="font-black uppercase tracking-widest text-xs">Web Link</span>
+                </div>
+                <h3 className="text-2xl font-black text-gray-900 leading-tight">{attachment.name || 'Open Link'}</h3>
+                <p className="text-gray-500 font-medium truncate">{attachment.url}</p>
+                <button 
+                  onClick={() => window.open(attachment.url, '_blank')}
+                  className="w-full py-4 bg-black text-white rounded-2xl font-black uppercase tracking-widest text-[13px] shadow-lg active:scale-95 transition-all"
+                >
+                  Visit Website
+                </button>
+              </div>
+           </div>
+        ) : (
+          <div className="bg-white/10 backdrop-blur-lg p-12 rounded-[40px] border border-white/20 text-center space-y-4">
+            <FileIcon size={64} className="text-orange-400 mx-auto" />
+            <p className="text-white font-black text-lg break-all">{attachment.name || attachment.url}</p>
+            <button 
+              onClick={() => window.open(attachment.url, '_blank')}
+              className="px-6 py-3 bg-white text-black rounded-full font-black uppercase tracking-widest text-[12px]"
+            >
+              Download File
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showMenu && (
+        <div className="absolute top-16 right-4 w-48 bg-white rounded-2xl shadow-2xl overflow-hidden animate-scale-up z-20">
+          <button onClick={handleCopy} className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-gray-700 active:bg-gray-100 border-b border-gray-50"><CopyIcon size={16}/> Copy Link</button>
+          <button onClick={handleShare} className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-gray-700 active:bg-gray-100 border-b border-gray-50"><Share2 size={16}/> Share</button>
+          <a href={attachment.url} download={attachment.name || 'file'} className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-gray-700 active:bg-gray-100 border-b border-gray-50"><Download size={16}/> Download</a>
+          {onDelete && <button onClick={() => { onDelete(); onClose(); }} className="w-full px-4 py-3 flex items-center gap-3 text-sm font-bold text-red-500 active:bg-red-50"><Trash2 size={16}/> Delete</button>}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- Input Controls ---
+
+const QuickCardInput = ({ basketId, dispatch, onAdd }: { basketId: string, dispatch: any, onAdd?: () => void }) => {
+  const [text, setText] = useState('');
+  const [trayOpen, setTrayOpen] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
+  const [activeInputType, setActiveInputType] = useState<'link' | 'image' | 'video' | 'file' | null>(null);
+  const [urlInput, setUrlInput] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  
+  const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+
+  const addAttachment = () => {
+    if (!urlInput.trim() || !activeInputType) return;
+    const newAtt: Attachment = {
+      id: Date.now().toString(),
+      type: activeInputType,
+      url: urlInput.trim(),
+      name: urlInput.split('/').pop() || urlInput
+    };
+    setPendingAttachments([...pendingAttachments, newAtt]);
+    setUrlInput('');
+    setActiveInputType(null);
+  };
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files) return;
+    const newAttachments: Attachment[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const att = await processFile(files[i]);
+      newAttachments.push(att);
+    }
+    setPendingAttachments([...pendingAttachments, ...newAttachments]);
+  };
+
+  const onDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    await handleFiles(e.dataTransfer.files);
+    setTrayOpen(true);
+  };
+
+  const handleSend = () => {
+    if (!text.trim() && pendingAttachments.length === 0) return;
+    
+    const newCard: Card = {
+      id: Math.random().toString(36).substr(2, 9),
+      text: text.trim() || (pendingAttachments.length > 0 ? `Added ${pendingAttachments.length} item(s)` : ""),
+      attachments: pendingAttachments,
+      scribbles: [],
+      creatorId: ME.id,
+      creatorName: ME.name,
+      basketIds: [basketId],
+      timestamp: Date.now(),
+      isPinned: false
+    };
+    
+    dispatch({ type: 'ADD_CARD', card: newCard });
+    setText('');
+    setPendingAttachments([]);
+    setTrayOpen(false);
+    setActiveInputType(null);
+    onAdd?.();
+  };
+
+  const getIcon = (type: string) => {
+    switch(type) {
+      case 'image': return <ImageIcon size={14} className="text-blue-500" />;
+      case 'video': return <VideoIcon size={14} className="text-purple-500" />;
+      case 'file': return <FileIcon size={14} className="text-orange-500" />;
+      default: return <LinkIcon size={14} className="text-green-500" />;
+    }
+  };
+
+  return (
+    <div 
+      className={`fixed bottom-[83px] left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-gray-100 p-3 z-50 transition-all ${isDragging ? 'bg-blue-50 ring-2 ring-blue-400 ring-inset' : ''}`}
+      onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+      onDragLeave={() => setIsDragging(false)}
+      onDrop={onDrop}
+    >
+      <input type="file" multiple className="hidden" ref={fileInputRef} onChange={(e) => handleFiles(e.target.files)} />
+      {/* Fix: use spread with any cast for webkitdirectory to avoid TS error */}
+      <input type="file" multiple {...({ webkitdirectory: "" } as any)} className="hidden" ref={folderInputRef} onChange={(e) => handleFiles(e.target.files)} />
+      
+      <div className="flex flex-col gap-2">
+        {/* Pending Items Strip */}
+        {pendingAttachments.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 animate-slide-up">
+            {pendingAttachments.map(att => (
+              <div key={att.id} className="flex items-center gap-1.5 bg-[#F2F2F7] px-3 py-1.5 rounded-full border border-black/5 flex-shrink-0 shadow-sm">
+                {getIcon(att.type)}
+                <span className="text-[11px] font-black uppercase tracking-widest text-gray-600 truncate max-w-[100px]">{att.name || att.url}</span>
+                <button onClick={() => setPendingAttachments(prev => prev.filter(a => a.id !== att.id))} className="text-gray-400 active:text-[#FF3B30]">
+                  <CircleX size={14} fill="currentColor" className="text-gray-300" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Attachment URL Prompt */}
+        {activeInputType && (
+          <div className="flex gap-2 items-center animate-slide-up bg-[#F2F2F7] p-2 rounded-2xl border border-black/5">
+            <div className="p-2 bg-white rounded-xl shadow-sm">{getIcon(activeInputType)}</div>
+            <input 
+              autoFocus
+              className="flex-1 bg-transparent text-[14px] font-medium outline-none" 
+              placeholder={`Paste ${activeInputType} URL...`}
+              value={urlInput}
+              onChange={e => setUrlInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addAttachment()}
+            />
+            <button onClick={() => setActiveInputType(null)} className="text-gray-400 p-1"><X size={18}/></button>
+            <button onClick={addAttachment} className="bg-black text-white px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest">Add</button>
+          </div>
+        )}
+
+        {/* Action Bar */}
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => { setTrayOpen(!trayOpen); setActiveInputType(null); }}
+            className={`p-2.5 rounded-full transition-all active:scale-90 ${trayOpen ? 'bg-black text-white' : 'bg-[#F2F2F7] text-gray-500'}`}
+          >
+            <Plus size={20} className={`transition-transform duration-300 ${trayOpen ? 'rotate-45' : ''}`} />
+          </button>
+          
+          <div className="flex-1 relative">
+            <input 
+              ref={inputRef}
+              className="w-full bg-[#F2F2F7] rounded-full px-4 py-2.5 outline-none text-[17px] font-medium focus:bg-white transition-all border border-transparent focus:border-black/5" 
+              placeholder={isDragging ? "Drop files here!" : "Quick card note..."} 
+              value={text} 
+              onChange={e => setText(e.target.value)} 
+              onKeyDown={e => e.key === 'Enter' && handleSend()}
+            />
+          </div>
+          
+          <button 
+            onClick={handleSend} 
+            disabled={!text.trim() && pendingAttachments.length === 0}
+            className="bg-[#FF3B30] text-white p-2.5 rounded-full active:scale-90 transition-transform shadow-md disabled:opacity-50"
+          >
+            <Send size={18} />
+          </button>
+        </div>
+
+        {/* Attachment Tray */}
+        {trayOpen && !activeInputType && (
+          <div className="space-y-2 animate-slide-up">
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { type: 'link', icon: LinkIcon, label: 'Link', color: 'text-green-500' },
+                { type: 'image', icon: ImageIcon, label: 'Image', color: 'text-blue-500' },
+                { type: 'video', icon: VideoIcon, label: 'Video', color: 'text-purple-500' },
+                { type: 'file', icon: FileIcon, label: 'File', color: 'text-orange-500' }
+              ].map(item => (
+                <button 
+                  key={item.type}
+                  onClick={() => setActiveInputType(item.type as any)}
+                  className="flex flex-col items-center gap-1.5 p-3 bg-[#F2F2F7] rounded-2xl active:bg-gray-200 transition-colors border border-black/5 shadow-sm"
+                >
+                  <div className={`${item.color}`}><item.icon size={24} /></div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">{item.label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center justify-center gap-3 p-3 bg-black text-white rounded-2xl active:scale-95 transition-all shadow-md font-black uppercase tracking-widest text-[11px]"
+              >
+                <Upload size={18}/> Browse Files
+              </button>
+              <button 
+                onClick={() => folderInputRef.current?.click()}
+                className="flex items-center justify-center gap-3 p-3 bg-gray-900 text-white rounded-2xl active:scale-95 transition-all shadow-md font-black uppercase tracking-widest text-[11px]"
+              >
+                <FolderOpen size={18}/> Add Folder
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
 
 // --- Card Components ---
 
-const CardPost: React.FC<{ card: Card, viewMode: ViewMode, dispatch: any, state: AppState }> = ({ card, viewMode, dispatch, state }) => {
+const CardPost: React.FC<{ 
+  card: Card, 
+  viewMode: ViewMode, 
+  dispatch: any, 
+  state: AppState, 
+  onDragStart?: (e: React.DragEvent) => void, 
+  onDragOver?: (e: React.DragEvent) => void, 
+  onDrop?: (e: React.DragEvent) => void 
+}> = ({ card, viewMode, dispatch, state, onDragStart, onDragOver, onDrop }) => {
   const navigate = useNavigate();
   const [showActions, setShowActions] = useState(false);
+  const [newScribble, setNewScribble] = useState('');
+  const [activeAttachment, setActiveAttachment] = useState<Attachment | null>(null);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [pickerMode, setPickerMode] = useState<'copy' | 'move' | null>(null);
+
+  const carouselRef = useRef<HTMLDivElement>(null);
   const isMax = viewMode === 'max';
 
-  const images = card.attachments.filter(a => a.type === 'image');
-  const otherAttachments = card.attachments.filter(a => a.type !== 'image');
+  const handleScroll = () => {
+    if (carouselRef.current) {
+      const scrollPos = carouselRef.current.scrollLeft;
+      const itemWidth = carouselRef.current.offsetWidth;
+      if (itemWidth > 0) {
+        setCurrentIdx(Math.round(scrollPos / itemWidth));
+      }
+    }
+  };
+
+  const scrollToIndex = (index: number) => {
+    if (carouselRef.current) {
+      const itemWidth = carouselRef.current.offsetWidth;
+      carouselRef.current.scrollTo({
+        left: index * itemWidth,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  const nextAttachment = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (currentIdx < card.attachments.length - 1) {
+      scrollToIndex(currentIdx + 1);
+    }
+  };
+
+  const prevAttachment = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (currentIdx > 0) {
+      scrollToIndex(currentIdx - 1);
+    }
+  };
+
+  const handleAddScribble = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!newScribble.trim()) return;
+    dispatch({ 
+      type: 'ADD_CARD_SCRIBBLE', 
+      cardId: card.id, 
+      scribble: { id: Date.now().toString(), authorId: ME.id, authorName: ME.name, text: newScribble.trim(), timestamp: Date.now() } 
+    });
+    setNewScribble('');
+  };
+
+  const handleCardShare = async () => {
+    try {
+      await navigator.share({
+        title: 'Check out this Card on Boxxit!',
+        text: card.text,
+        url: window.location.href
+      });
+    } catch (e) {
+      alert('Sharing not supported');
+    }
+    setShowActions(false);
+  };
+
+  const handleCopyCard = (targetBasketId: string) => {
+    const newCard = { ...card, id: Math.random().toString(36).substr(2, 9), basketIds: [targetBasketId], timestamp: Date.now(), isPinned: false };
+    dispatch({ type: 'ADD_CARD', card: newCard });
+    setPickerMode(null);
+    setShowActions(false);
+  };
+
+  const handleMoveCard = (targetBasketId: string) => {
+    dispatch({ type: 'UPDATE_CARD', cardId: card.id, updates: { basketIds: [targetBasketId] } });
+    setPickerMode(null);
+    setShowActions(false);
+  };
+
+  const cardBaseStyle = "bg-white rounded-2xl shadow-sm border border-black/5 mb-4 overflow-hidden group transition-all relative";
 
   return (
-    <div className={`border-b border-gray-100 bg-white ${isMax ? 'py-4' : 'py-2 px-4'}`}>
+    <div 
+      draggable={!!onDragStart}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      className={cardBaseStyle + (onDragStart ? ' cursor-default' : '')}
+    >
       {isMax ? (
-        <div className="space-y-3">
-          <div className="px-4 flex items-start justify-between">
+        <div className="space-y-0 pb-3">
+          <div className="px-4 py-3 flex items-start justify-between border-b border-gray-50">
             <div className="flex items-center gap-2">
+              <div className="cursor-grab active:cursor-grabbing text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity mr-1">
+                <GripVertical size={20} />
+              </div>
               <div className="w-8 h-8 rounded-full bg-[#F2F2F7] flex items-center justify-center text-[10px] font-black uppercase text-gray-400">
                 {card.creatorName.substring(0, 2)}
               </div>
@@ -265,69 +702,192 @@ const CardPost: React.FC<{ card: Card, viewMode: ViewMode, dispatch: any, state:
             </div>
             <div className="flex items-center gap-1">
               {card.isPinned && <Pin size={14} className="text-[#FF3B30] fill-[#FF3B30] mr-1" />}
-              <button onClick={() => setShowActions(!showActions)} className="p-1 text-gray-400"><MoreHorizontal size={20} /></button>
+              <button onClick={() => setShowActions(!showActions)} className="p-1 text-gray-400 active:bg-gray-100 rounded-full transition-colors"><MoreHorizontal size={20} /></button>
             </div>
           </div>
 
-          {images.length > 0 && (
-            <div className="px-0">
-              <img src={images[0].url} className="w-full aspect-[4/3] object-cover" alt="" />
+          {card.attachments.length > 0 && (
+            <div className="relative group/carousel mx-2 mt-2 rounded-2xl overflow-hidden shadow-inner bg-[#F2F2F7] border border-black/5">
+              <div 
+                ref={carouselRef}
+                onScroll={handleScroll}
+                className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar"
+              >
+                {card.attachments.map((att) => (
+                  <div 
+                    key={att.id} 
+                    onClick={() => setActiveAttachment(att)}
+                    className="flex-shrink-0 w-full snap-center aspect-square relative bg-[#F2F2F7] flex items-center justify-center cursor-pointer overflow-hidden"
+                  >
+                    {att.type === 'image' ? (
+                      <img src={att.url} className="w-full h-full object-cover" alt="" />
+                    ) : att.type === 'video' ? (
+                      <div className="w-full h-full bg-black relative flex items-center justify-center">
+                        <VideoIcon size={48} strokeWidth={1.5} className="text-white/40" />
+                        <div className="absolute inset-0 bg-black/20" />
+                        <span className="absolute bottom-4 text-[10px] font-black uppercase tracking-widest text-white/80 px-4 text-center line-clamp-1">{att.name || 'Video'}</span>
+                      </div>
+                    ) : att.type === 'link' ? (
+                      <div className="w-full h-full relative group/link bg-white">
+                        <img 
+                          src={getLinkThumbnail(att.url) || ''} 
+                          className="w-full h-full object-cover opacity-90 group-hover/link:opacity-100 transition-opacity"
+                          alt={att.name || 'Website Preview'}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent flex flex-col justify-end p-6">
+                           <div className="flex items-center gap-2 text-[#FF3B30] mb-2">
+                             <Globe size={14} strokeWidth={3} />
+                             <span className="text-[10px] font-black uppercase tracking-[0.2em]">{new URL(att.url).hostname.replace('www.', '')}</span>
+                           </div>
+                           <h4 className="text-white font-black text-sm line-clamp-2 leading-tight drop-shadow-md">{att.name || 'Open Link'}</h4>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-orange-500 bg-white w-full h-full justify-center px-8">
+                        <div className="w-20 h-20 bg-orange-50 rounded-3xl flex items-center justify-center mb-2">
+                          <FileIcon size={32} />
+                        </div>
+                        <span className="text-[12px] font-black uppercase tracking-widest text-gray-900 text-center line-clamp-2 leading-tight">{att.name || 'File'}</span>
+                        <span className="text-[10px] font-medium text-gray-400">Local Attachment</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              
+              {card.attachments.length > 1 && (
+                <>
+                  {/* Left Arrow */}
+                  {currentIdx > 0 && (
+                    <button 
+                      onClick={prevAttachment}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 backdrop-blur-md shadow-md p-1.5 rounded-full text-gray-900 z-20 active:scale-90 transition-all opacity-0 group-hover/carousel:opacity-100"
+                    >
+                      <ChevronLeft size={20} strokeWidth={3} />
+                    </button>
+                  )}
+                  {/* Right Arrow */}
+                  {currentIdx < card.attachments.length - 1 && (
+                    <button 
+                      onClick={nextAttachment}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 backdrop-blur-md shadow-md p-1.5 rounded-full text-gray-900 z-20 active:scale-90 transition-all opacity-0 group-hover/carousel:opacity-100"
+                    >
+                      <ChevronRight size={20} strokeWidth={3} />
+                    </button>
+                  )}
+
+                  {/* Top-left Indicator Pill */}
+                  <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-white text-[10px] font-black px-2.5 py-1 rounded-full flex items-center gap-1.5 z-10 shadow-lg">
+                    <Layers size={10} />
+                    <span>{currentIdx + 1} / {card.attachments.length}</span>
+                  </div>
+
+                  {/* Bottom Indicator Dots */}
+                  <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-2 z-10 pointer-events-none">
+                    {card.attachments.map((_, i) => (
+                      <div 
+                        key={i} 
+                        className={`h-1.5 rounded-full transition-all duration-300 ${i === currentIdx ? 'bg-white w-4 shadow-sm' : 'bg-white/40 w-1.5'}`} 
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
-          <div className="px-4">
-            <p className="text-[16px] text-gray-800 leading-relaxed whitespace-pre-wrap font-medium">{card.text}</p>
+          <div className="px-4 pt-4 pb-1">
+            <p className="text-[15px] text-gray-800 leading-relaxed whitespace-pre-wrap font-medium">{card.text}</p>
           </div>
 
-          {otherAttachments.length > 0 && (
-            <div className="px-4 flex flex-wrap gap-2">
-              {otherAttachments.map(att => (
-                <div key={att.id} className="flex items-center gap-2 bg-[#F2F2F7] px-3 py-1.5 rounded-full border border-black/5 max-w-full">
-                  {att.type === 'link' ? <LinkIcon size={14}/> : <FileIcon size={14}/>}
-                  <span className="text-[12px] font-bold truncate max-w-[150px]">{att.name || att.url}</span>
+          {card.scribbles.length > 0 && (
+            <div className="px-4 mt-3 pt-3 border-t border-gray-50 space-y-2">
+              <p className="text-[10px] font-black uppercase text-[#8E8E93] tracking-widest">Scribbles</p>
+              {card.scribbles.map(s => (
+                <div key={s.id} className="flex gap-2">
+                  <div className="w-5 h-5 rounded-full bg-gray-100 flex-shrink-0 flex items-center justify-center text-[8px] font-bold text-gray-400 border border-black/5">
+                    {s.authorName.substring(0,1)}
+                  </div>
+                  <p className="text-[13px] leading-snug">
+                    <span className="font-bold mr-1.5 text-black">{s.authorName}</span>
+                    <span className="text-gray-600 font-medium">{s.text}</span>
+                  </p>
                 </div>
               ))}
             </div>
           )}
 
-          {card.scribbles.length > 0 && (
-            <div className="px-4 mt-2 space-y-1">
-              {card.scribbles.slice(-2).map(s => (
-                <p key={s.id} className="text-[13px] leading-snug">
-                  <span className="font-bold mr-1.5 text-black">{s.authorName}</span>
-                  <span className="text-gray-600 font-medium">{s.text}</span>
-                </p>
-              ))}
-              {card.scribbles.length > 2 && (
-                <button onClick={() => navigate(`/edit-card/${card.id}`)} className="text-[12px] font-black text-[#FF3B30] mt-1 uppercase tracking-wider">View all {card.scribbles.length} scribbles</button>
-              )}
-            </div>
-          )}
+          <div className="px-4 mt-3">
+             <form onSubmit={handleAddScribble} className="flex items-center gap-2 bg-[#F2F2F7] rounded-full px-3 py-1.5 border border-black/5">
+                <input 
+                  className="flex-1 bg-transparent text-[13px] font-medium outline-none placeholder:text-gray-400" 
+                  placeholder="Add a scribble..." 
+                  value={newScribble}
+                  onChange={e => setNewScribble(e.target.value)}
+                />
+                <button type="submit" className="text-[#FF3B30] active:scale-90 transition-transform">
+                  <Send size={14}/>
+                </button>
+             </form>
+          </div>
 
           {showActions && (
-            <div className="px-4 pt-2 flex gap-2 animate-fade-in">
-              <button onClick={() => navigate(`/edit-card/${card.id}`)} className="flex-1 bg-[#F2F2F7] py-2.5 rounded-xl text-[13px] font-black uppercase tracking-tight text-gray-700 flex items-center justify-center gap-2 active:bg-gray-200 transition-colors"><Edit2 size={14}/> Edit</button>
-              <button onClick={() => dispatch({ type: 'TOGGLE_CARD_PIN', cardId: card.id })} className="flex-1 bg-[#F2F2F7] py-2.5 rounded-xl text-[13px] font-black uppercase tracking-tight text-gray-700 flex items-center justify-center gap-2 active:bg-gray-200 transition-colors"><Pin size={14}/> {card.isPinned ? 'Unpin' : 'Pin'}</button>
-              <button onClick={() => dispatch({ type: 'DELETE_CARD', cardId: card.id })} className="flex-1 bg-[#FF3B30]/10 py-2.5 rounded-xl text-[13px] font-black uppercase tracking-tight text-[#FF3B30] flex items-center justify-center gap-2 active:bg-[#FF3B30]/20 transition-colors"><Trash2 size={14}/> Delete</button>
+            <div className="absolute top-12 right-4 w-56 bg-white rounded-3xl shadow-2xl overflow-hidden animate-scale-up z-[40] border border-black/5 p-1">
+              <button onClick={() => navigate(`/edit-card/${card.id}`)} className="w-full px-4 py-3.5 flex items-center gap-3 text-[14px] font-bold text-gray-700 active:bg-gray-50 rounded-2xl"><Edit2 size={18}/> Edit Card</button>
+              <button onClick={handleCardShare} className="w-full px-4 py-3.5 flex items-center gap-3 text-[14px] font-bold text-gray-700 active:bg-gray-50 rounded-2xl"><Share2 size={18}/> Share External</button>
+              <button onClick={() => setPickerMode('copy')} className="w-full px-4 py-3.5 flex items-center gap-3 text-[14px] font-bold text-gray-700 active:bg-gray-50 rounded-2xl"><Copy size={18}/> Copy to Box...</button>
+              <button onClick={() => setPickerMode('move')} className="w-full px-4 py-3.5 flex items-center gap-3 text-[14px] font-bold text-gray-700 active:bg-gray-50 rounded-2xl"><Move size={18}/> Move to Box...</button>
+              <div className="h-px bg-gray-50 my-1" />
+              <button onClick={() => dispatch({ type: 'DELETE_CARD', cardId: card.id })} className="w-full px-4 py-3.5 flex items-center gap-3 text-[14px] font-bold text-red-500 active:bg-red-50 rounded-2xl"><Trash2 size={18}/> Delete Card</button>
             </div>
           )}
         </div>
       ) : (
-        <div className="flex items-center justify-between gap-4 py-1.5" onClick={() => navigate(`/edit-card/${card.id}`)}>
+        <div className="flex items-center justify-between gap-4 p-3 active:bg-gray-50 transition-colors" onClick={() => navigate(`/edit-card/${card.id}`)}>
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-[#F2F2F7] flex items-center justify-center flex-shrink-0 border border-black/5 overflow-hidden shadow-sm">
-              {images[0] ? <img src={images[0].url} className="w-full h-full object-cover" /> : <FileIcon className="text-gray-300" size={18}/>}
+            <div className="cursor-grab active:cursor-grabbing text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity">
+              <GripVertical size={18} />
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-[#F2F2F7] flex items-center justify-center flex-shrink-0 border border-black/5 overflow-hidden shadow-sm relative">
+              {card.attachments[0] ? (
+                <img src={card.attachments[0].type === 'link' ? getLinkThumbnail(card.attachments[0].url) || '' : card.attachments[0].url} className="w-full h-full object-cover" />
+              ) : <FileIcon className="text-gray-300" size={18}/>}
+              {card.attachments.length > 1 && (
+                <div className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5"><Layers size={8}/></div>
+              )}
             </div>
             <div className="min-w-0">
               <p className="text-[15px] font-bold text-gray-900 truncate leading-tight flex items-center gap-1.5">
                 {card.isPinned && <Pin size={10} className="text-[#FF3B30] fill-[#FF3B30]" />}
                 {card.text}
               </p>
-              <p className="text-[11px] text-[#8E8E93] font-bold uppercase tracking-tight mt-0.5">{card.creatorName} • {new Date(card.timestamp).toLocaleDateString()}</p>
+              <p className="text-[11px] text-[#8E8E93] font-black uppercase tracking-widest mt-0.5">
+                {card.creatorName} • {card.attachments.length} items
+              </p>
             </div>
           </div>
           <ChevronRightIcon size={16} className="text-gray-300 flex-shrink-0" />
         </div>
+      )}
+
+      {activeAttachment && (
+        <AttachmentFullView 
+          attachment={activeAttachment} 
+          onClose={() => setActiveAttachment(null)}
+          onDelete={card.attachments.length > 1 ? () => {
+            const updated = card.attachments.filter(a => a.id !== activeAttachment.id);
+            dispatch({ type: 'UPDATE_CARD', cardId: card.id, updates: { attachments: updated } });
+          } : undefined}
+        />
+      )}
+
+      {pickerMode && (
+        <BasketPicker 
+          state={state}
+          title={pickerMode === 'copy' ? 'Copy to which Box?' : 'Move to which Box?'}
+          onClose={() => setPickerMode(null)}
+          onSelect={pickerMode === 'copy' ? handleCopyCard : handleMoveCard}
+        />
       )}
     </div>
   );
@@ -347,6 +907,18 @@ const CardFormScreen = ({ state, dispatch, isEdit = false }: { state: AppState, 
   const [attachments, setAttachments] = useState<Attachment[]>(card?.attachments || []);
   const [newAttachmentUrl, setNewAttachmentUrl] = useState('');
   const [newScribble, setNewScribble] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const [boxSearch, setBoxSearch] = useState('');
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+
+  const filteredBaskets = useMemo(() => {
+    const q = boxSearch.toLowerCase();
+    return state.baskets.filter(b => !b.isArchived && (
+      b.title.toLowerCase().includes(q) || b.description.toLowerCase().includes(q)
+    ));
+  }, [state.baskets, boxSearch]);
 
   const handleSave = () => {
     if (!text.trim() || basketIds.length === 0) return;
@@ -369,10 +941,32 @@ const CardFormScreen = ({ state, dispatch, isEdit = false }: { state: AppState, 
     navigate(-1);
   };
 
+  const handleFiles = async (files: FileList | null) => {
+    if (!files) return;
+    const newAttachments: Attachment[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const att = await processFile(files[i]);
+      newAttachments.push(att);
+    }
+    setAttachments([...attachments, ...newAttachments]);
+  };
+
+  const onDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    await handleFiles(e.dataTransfer.files);
+  };
+
   const addAttachment = () => {
     if (!newAttachmentUrl.trim()) return;
-    const type: any = newAttachmentUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? 'image' : 'link';
-    const newAtt: Attachment = { id: Date.now().toString(), type, url: newAttachmentUrl };
+    const type: any = newAttachmentUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? 'image' : 
+                      newAttachmentUrl.match(/\.(mp4|webm|mov)$/i) ? 'video' : 'link';
+    const newAtt: Attachment = { 
+      id: Date.now().toString(), 
+      type, 
+      url: newAttachmentUrl,
+      name: newAttachmentUrl.split('/').pop() || newAttachmentUrl
+    };
     setAttachments([...attachments, newAtt]);
     setNewAttachmentUrl('');
   };
@@ -393,7 +987,7 @@ const CardFormScreen = ({ state, dispatch, isEdit = false }: { state: AppState, 
       />
       <div className="p-4 space-y-6">
         <div className="space-y-3">
-          <label className="text-xs font-black text-gray-400 uppercase tracking-widest px-2">Content</label>
+          <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest px-2">Content</label>
           <textarea 
             className="w-full p-4 bg-[#F2F2F7] rounded-3xl outline-none min-h-[120px] text-[17px] font-medium resize-none focus:bg-white focus:ring-2 ring-[#FF3B30]/10 transition-all shadow-sm border border-black/5" 
             placeholder="What's on your mind? Link, idea, or note..." 
@@ -403,43 +997,113 @@ const CardFormScreen = ({ state, dispatch, isEdit = false }: { state: AppState, 
         </div>
 
         <div className="space-y-3">
-          <label className="text-xs font-black text-gray-400 uppercase tracking-widest px-2">In Boxes</label>
-          <div className="flex flex-wrap gap-2">
-            {state.baskets.filter(b => !b.isArchived).map(b => {
-              const isSelected = basketIds.includes(b.id);
-              return (
-                <button 
-                  key={b.id} 
-                  onClick={() => setBasketIds(isSelected ? basketIds.filter(id => id !== b.id) : [...basketIds, b.id])}
-                  className={`px-4 py-2 rounded-full text-[13px] font-bold transition-all border ${isSelected ? 'bg-black text-white border-black shadow-md' : 'bg-white text-gray-500 border-gray-100 shadow-sm'}`}
-                >
-                  {b.title}
-                </button>
-              );
-            })}
+          <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest px-2">In Boxes</label>
+          
+          <div className="bg-[#F2F2F7] rounded-xl h-[40px] flex items-center px-3 gap-2 border border-black/5 focus-within:ring-2 ring-[#FF3B30]/20 transition-all relative mb-2">
+            <SearchIcon size={16} className="text-[#8E8E93] flex-shrink-0" />
+            <input 
+              placeholder="Search boxes..." 
+              className="bg-transparent w-full text-[14px] font-medium outline-none placeholder:text-[#8E8E93]" 
+              value={boxSearch} 
+              onChange={e => setBoxSearch(e.target.value)} 
+            />
+            {boxSearch && (
+              <button 
+                onClick={() => setBoxSearch('')} 
+                className="p-1 text-[#8E8E93]"
+              >
+                <CircleX size={14} fill="currentColor" className="text-gray-300" />
+              </button>
+            )}
+          </div>
+
+          <div className="max-h-[180px] overflow-y-auto no-scrollbar border border-black/5 rounded-2xl p-2 bg-[#F2F2F7]/30">
+            <div className="flex flex-wrap gap-2">
+              {filteredBaskets.length > 0 ? filteredBaskets.map(b => {
+                const isSelected = basketIds.includes(b.id);
+                return (
+                  <button 
+                    key={b.id} 
+                    onClick={() => setBasketIds(isSelected ? basketIds.filter(id => id !== b.id) : [...basketIds, b.id])}
+                    className={`px-4 py-2 rounded-full text-[13px] font-bold transition-all border ${isSelected ? 'bg-black text-white border-black shadow-md' : 'bg-white text-gray-500 border-gray-100 shadow-sm'}`}
+                  >
+                    {b.title}
+                  </button>
+                );
+              }) : (
+                <p className="text-[11px] text-gray-400 p-4 w-full text-center italic">No boxes match your search.</p>
+              )}
+            </div>
           </div>
         </div>
 
         <div className="space-y-3">
-          <label className="text-xs font-black text-gray-400 uppercase tracking-widest px-2">Attachments</label>
-          <div className="space-y-3">
+          <div className="flex items-center justify-between px-2">
+            <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Attachments</label>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="text-[10px] font-black uppercase text-gray-900 flex items-center gap-1.5"
+              >
+                <Upload size={14}/> Files
+              </button>
+              <button 
+                onClick={() => folderInputRef.current?.click()}
+                className="text-[10px] font-black uppercase text-gray-900 flex items-center gap-1.5"
+              >
+                <FolderOpen size={14}/> Folder
+              </button>
+            </div>
+          </div>
+          
+          <input type="file" multiple className="hidden" ref={fileInputRef} onChange={(e) => handleFiles(e.target.files)} />
+          {/* Fix: use spread with any cast for webkitdirectory to avoid TS error */}
+          <input type="file" multiple {...({ webkitdirectory: "" } as any)} className="hidden" ref={folderInputRef} onChange={(e) => handleFiles(e.target.files)} />
+
+          <div 
+            className={`space-y-3 transition-all ${isDragging ? 'scale-[1.02]' : ''}`}
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={onDrop}
+          >
             <div className="flex gap-2">
               <input 
-                className="flex-1 bg-[#F2F2F7] rounded-2xl px-4 py-3 outline-none text-[14px] font-medium focus:bg-white border border-transparent focus:border-black/5" 
-                placeholder="Link or Image URL" 
+                className="flex-1 bg-[#F2F2F7] rounded-2xl px-4 py-3 outline-none text-[17px] font-medium focus:bg-white border border-transparent focus:border-black/5" 
+                placeholder="Paste Link or Image URL..." 
                 value={newAttachmentUrl} 
                 onChange={e => setNewAttachmentUrl(e.target.value)} 
               />
               <button onClick={addAttachment} className="bg-black text-white px-5 rounded-2xl font-black uppercase tracking-widest text-[12px] active:scale-95 transition-transform shadow-md">Add</button>
             </div>
+
+            <div className={`p-8 border-2 border-dashed rounded-[32px] flex flex-col items-center justify-center gap-3 transition-all ${isDragging ? 'bg-blue-50 border-blue-400' : 'bg-[#F2F2F7] border-gray-200'}`}>
+               <Upload className={`${isDragging ? 'text-blue-500 scale-125' : 'text-gray-400'} transition-all`} size={32} />
+               <p className="text-[11px] font-black uppercase tracking-widest text-gray-400 text-center">
+                 {isDragging ? 'Drop it like it\'s hot!' : 'Drag and drop files/folders here'}
+               </p>
+            </div>
+
             <div className="grid grid-cols-1 gap-2">
               {attachments.map(att => (
-                <div key={att.id} className="flex items-center justify-between p-3 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                <div key={att.id} className="flex items-center justify-between p-3 bg-white rounded-2xl border border-gray-100 shadow-sm group">
                   <div className="flex items-center gap-3 min-w-0">
-                    {att.type === 'image' ? <ImageIcon size={18} className="text-blue-500"/> : <LinkIcon size={18} className="text-orange-500"/>}
-                    <span className="text-[13px] font-bold truncate text-gray-700">{att.url}</span>
+                    <div className="w-10 h-10 rounded-xl bg-[#F2F2F7] flex items-center justify-center overflow-hidden border border-black/5 flex-shrink-0">
+                      {att.type === 'image' ? (
+                        <img src={att.url} className="w-full h-full object-cover" />
+                      ) : att.type === 'video' ? (
+                        <VideoIcon size={18} className="text-purple-500" />
+                      ) : att.type === 'link' ? (
+                        <img src={getLinkThumbnail(att.url) || ''} className="w-full h-full object-cover" />
+                      ) : (
+                        <FileIcon size={18} className="text-orange-500"/>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[13px] font-bold truncate block text-gray-900">{att.name || 'Attachment'}</span>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 block truncate">{att.url.startsWith('data:') ? 'Local File' : att.url}</span>
+                    </div>
                   </div>
-                  <button onClick={() => setAttachments(attachments.filter(a => a.id !== att.id))} className="text-gray-300 p-1 hover:text-[#FF3B30] transition-colors"><Trash2 size={16}/></button>
+                  <button onClick={() => setAttachments(attachments.filter(a => a.id !== att.id))} className="text-gray-300 p-2 opacity-0 group-hover:opacity-100 hover:text-[#FF3B30] transition-all"><Trash2 size={16}/></button>
                 </div>
               ))}
             </div>
@@ -448,7 +1112,7 @@ const CardFormScreen = ({ state, dispatch, isEdit = false }: { state: AppState, 
 
         {isEdit && (
           <div className="space-y-3 pt-6 border-t border-gray-100">
-            <label className="text-xs font-black text-gray-400 uppercase tracking-widest px-2">Card Scribbles</label>
+            <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest px-2">Card Scribbles</label>
             <div className="space-y-3">
               {card?.scribbles.map(s => (
                 <div key={s.id} className="p-3 bg-[#F2F2F7] rounded-2xl border border-black/5 shadow-sm">
@@ -458,7 +1122,7 @@ const CardFormScreen = ({ state, dispatch, isEdit = false }: { state: AppState, 
               ))}
               <div className="flex gap-2">
                 <input 
-                  className="flex-1 bg-white border border-gray-100 rounded-2xl px-4 py-3 outline-none text-[14px] font-medium focus:ring-2 ring-[#FF3B30]/10 transition-all shadow-sm" 
+                  className="flex-1 bg-white border border-gray-100 rounded-2xl px-4 py-3 outline-none text-[17px] font-medium focus:ring-2 ring-[#FF3B30]/10 transition-all shadow-sm" 
                   placeholder="Add a scribble..." 
                   value={newScribble} 
                   onChange={e => setNewScribble(e.target.value)} 
@@ -493,7 +1157,7 @@ const InviteFriendScreen = () => {
   const handleEmailInvite = () => {
     const subject = encodeURIComponent("Join me on Boxxit!");
     const body = encodeURIComponent(inviteMessage);
-    window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:${email}?subject=${subject}?body=${body}`;
   };
 
   const handleWhatsAppInvite = () => {
@@ -525,7 +1189,7 @@ const InviteFriendScreen = () => {
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="John Doe"
-              className="w-full p-4 bg-[#F2F2F7] rounded-2xl outline-none focus:bg-white focus:ring-2 ring-[#FF3B30]/10 transition-all text-[16px] font-medium border border-black/5"
+              className="w-full p-4 bg-[#F2F2F7] rounded-2xl outline-none focus:bg-white focus:ring-2 ring-[#FF3B30]/10 transition-all text-[17px] font-medium border border-black/5"
             />
           </div>
 
@@ -536,7 +1200,7 @@ const InviteFriendScreen = () => {
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="john@example.com"
-              className="w-full p-4 bg-[#F2F2F7] rounded-2xl outline-none focus:bg-white focus:ring-2 ring-[#FF3B30]/10 transition-all text-[16px] font-medium border border-black/5"
+              className="w-full p-4 bg-[#F2F2F7] rounded-2xl outline-none focus:bg-white focus:ring-2 ring-[#FF3B30]/10 transition-all text-[17px] font-medium border border-black/5"
             />
           </div>
 
@@ -546,7 +1210,7 @@ const InviteFriendScreen = () => {
               value={note}
               onChange={e => setNote(e.target.value)}
               rows={4}
-              className="w-full p-4 bg-[#F2F2F7] rounded-2xl outline-none focus:bg-white focus:ring-2 ring-[#FF3B30]/10 transition-all text-[15px] font-medium resize-none border border-black/5"
+              className="w-full p-4 bg-[#F2F2F7] rounded-2xl outline-none focus:bg-white focus:ring-2 ring-[#FF3B30]/10 transition-all text-[17px] font-medium resize-none border border-black/5"
             />
           </div>
         </div>
@@ -577,7 +1241,7 @@ const InviteFriendScreen = () => {
         </div>
 
         <p className="text-center text-[11px] text-[#8E8E93] font-bold uppercase tracking-tight">
-          Once they sign up, you'll be connected automatically!
+          Once they sign up, you'll see my invitation to connect!
         </p>
       </div>
     </div>
@@ -685,10 +1349,10 @@ const BasketsScreen = ({ state, dispatch }: { state: AppState, dispatch: any }) 
               <button 
                 key={t.id} 
                 onClick={() => setSortType(t.id as any)} 
-                className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shadow-sm ${
+                className={`px-4 py-1.5 rounded-full text-[13px] font-bold transition-all flex items-center gap-1.5 whitespace-nowrap shadow-sm border ${
                   isActive 
-                    ? 'bg-black text-white shadow-md' 
-                    : 'bg-[#F2F2F7] text-[#8E8E93]'
+                    ? 'bg-[#F2F2F7] text-black border-black shadow-md' 
+                    : 'bg-[#F2F2F7] text-[#8E8E93] border-transparent'
                 }`}
               >
                 <t.icon size={13} strokeWidth={3} /> {t.label}
@@ -725,11 +1389,11 @@ const BasketsScreen = ({ state, dispatch }: { state: AppState, dispatch: any }) 
                     )}
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-[17px] font-bold truncate leading-tight flex items-center gap-2 text-gray-900">
+                    <h3 className="text-[15px] font-bold truncate leading-tight flex items-center gap-2 text-gray-900">
                       {b.title}
                       {isPending && <span className="bg-[#FF3B30]/10 text-[#FF3B30] text-[10px] px-1.5 py-0.5 rounded-full uppercase tracking-wider font-black">Invitation</span>}
                     </h3>
-                    <p className="text-[13px] text-[#8E8E93] font-bold uppercase tracking-tight truncate mt-0.5">{cardsCount} cards • {membersCount} members</p>
+                    <p className="text-[11px] text-[#8E8E93] font-black uppercase tracking-widest truncate mt-0.5">{cardsCount} cards • {membersCount} members</p>
                   </div>
                 </div>
                 <ChevronRightIcon size={18} className="text-gray-300" />
@@ -765,6 +1429,7 @@ const BasketDetailScreen = ({ state, dispatch }: { state: AppState, dispatch: an
   const [searchTerm, setSearchTerm] = useState('');
   const basket = state.baskets.find(b => b.id === id);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
 
   const cards = useMemo(() => {
     let filtered = state.cards.filter(c => c.basketIds.includes(id || ''));
@@ -775,9 +1440,19 @@ const BasketDetailScreen = ({ state, dispatch }: { state: AppState, dispatch: an
     return filtered.sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
-      return (b.timestamp || 0) - (a.timestamp || 0);
+      if ((a.order ?? 0) !== (b.order ?? 0)) return (a.order || 0) - (b.order || 0);
+      return (a.timestamp || 0) - (b.timestamp || 0);
     });
   }, [state.cards, id, searchTerm]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, [cards.length]);
 
   const userMember = basket?.members.find(m => m.userId === ME.id);
   const isPending = userMember?.status === 'pending';
@@ -802,10 +1477,24 @@ const BasketDetailScreen = ({ state, dispatch }: { state: AppState, dispatch: an
     dispatch({ type: 'UPDATE_BASKET', basketId: basket.id, updates: { viewMode: basket.viewMode === 'max' ? 'mini' : 'max' } });
   };
 
+  const handleDragStart = (cardId: string) => {
+    setDraggedCardId(cardId);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (targetCardId: string) => {
+    if (!draggedCardId || draggedCardId === targetCardId) return;
+    dispatch({ type: 'REORDER_CARDS', basketId: id, sourceId: draggedCardId, targetId: targetCardId });
+    setDraggedCardId(null);
+  };
+
   if (!basket) return null;
 
   return (
-    <div className="min-h-screen bg-white pb-[180px] h-screen overflow-y-auto no-scrollbar" ref={scrollRef}>
+    <div className="min-h-screen bg-white pb-[220px] h-screen overflow-y-auto no-scrollbar" ref={scrollRef}>
       <IOSHeader 
         title={basket.title} 
         subtitle={`${cards.length} cards • ${membersCount} members • By ${creatorName}`} 
@@ -856,7 +1545,7 @@ const BasketDetailScreen = ({ state, dispatch }: { state: AppState, dispatch: an
             <SearchIcon size={18} className="text-[#8E8E93] flex-shrink-0" />
             <input 
               placeholder={`Search in ${basket.title}...`} 
-              className="bg-transparent w-full text-[16px] font-medium outline-none placeholder:text-[#8E8E93] pr-8" 
+              className="bg-transparent w-full text-[17px] font-medium outline-none placeholder:text-[#8E8E93] pr-8" 
               value={searchTerm} 
               onChange={e => setSearchTerm(e.target.value)} 
             />
@@ -871,7 +1560,7 @@ const BasketDetailScreen = ({ state, dispatch }: { state: AppState, dispatch: an
           </div>
           <button 
             onClick={() => navigate(`/basket-chat/${basket.id}`)}
-            className="p-2 relative active:scale-90 transition-transform text-[#FF3B30] bg-[#F2F2F7] rounded-xl border border-black/5"
+            className="p-2 relative active:scale-90 transition-transform text-gray-400 bg-[#F2F2F7] rounded-xl border border-black/5"
           >
             <MessageCircle size={22} strokeWidth={2.5} />
             {hasNewChat && <div className="absolute top-1 right-1 w-2.5 h-2.5 bg-[#FF3B30] rounded-full border border-white shadow-sm" />}
@@ -879,20 +1568,38 @@ const BasketDetailScreen = ({ state, dispatch }: { state: AppState, dispatch: an
         </div>
       )}
 
-      <div className="space-y-0">
-        {!isPending && cards.map((c: Card) => <CardPost key={c.id} card={c} viewMode={basket.viewMode} dispatch={dispatch} state={state} />)}
+      <div className="p-4 space-y-0">
+        {!isPending && cards.map((c: Card) => (
+          <CardPost 
+            key={c.id} 
+            card={c} 
+            viewMode={basket.viewMode} 
+            dispatch={dispatch} 
+            state={state} 
+            onDragStart={() => handleDragStart(c.id)}
+            onDragOver={handleDragOver}
+            onDrop={() => handleDrop(c.id)}
+          />
+        ))}
         {!isPending && cards.length === 0 && (
           <div className="p-16 text-center space-y-4">
             <div className="w-20 h-20 bg-[#F2F2F7] rounded-full flex items-center justify-center mx-auto text-gray-300 shadow-inner">
               <Package size={40} />
             </div>
-            <p className="text-[#8E8E93] font-bold uppercase tracking-tight">
-              {searchTerm ? `No cards match "${searchTerm}"` : 'This box is empty. Add a card!'}
+            <p className="text-[#8E8E93] font-black uppercase tracking-widest text-[11px]">
+              {searchTerm ? `No cards match "${searchTerm}"` : 'Empty Box'}
             </p>
           </div>
         )}
       </div>
-      {!isPending && <BoxChatInput basketId={basket.id} dispatch={dispatch} />}
+      {!isPending && <QuickCardInput basketId={basket.id} dispatch={dispatch} onAdd={() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTo({
+            top: scrollRef.current.scrollHeight,
+            behavior: 'smooth'
+          });
+        }
+      }} />}
       <ScrollToBottomButton scrollRef={scrollRef} />
     </div>
   );
@@ -940,11 +1647,11 @@ const BasketChatScreen = ({ state, dispatch }: { state: AppState, dispatch: any 
       </div>
       <div className="p-3 border-t border-gray-100 flex items-center gap-2 mb-[83px] bg-white/80 backdrop-blur-md">
         <input 
-          className="flex-1 bg-[#F2F2F7] rounded-full px-4 py-2.5 outline-none text-[16px] font-medium focus:bg-white focus:ring-2 ring-[#FF3B30]/10 transition-all border border-black/5" 
+          className="flex-1 bg-[#F2F2F7] rounded-full px-4 py-2.5 outline-none text-[17px] font-medium focus:bg-white focus:ring-2 ring-[#FF3B30]/10 transition-all border border-black/5" 
           placeholder="Type a message..." 
           value={text} 
           onChange={e => setText(e.target.value)} 
-          onKeyDown={e => e.key === 'Enter' && handleSend()}
+          onKeyDown={e => e.key === 'Enter' && handleSend()} 
         />
         <button onClick={handleSend} className="bg-[#FF3B30] text-white p-2.5 rounded-full active:scale-90 transition-transform shadow-lg"><Send size={20}/></button>
       </div>
@@ -965,6 +1672,14 @@ const BasketFormScreen = ({ state, dispatch, isEdit = false }: { state: AppState
   const [imageUrl, setImageUrl] = useState(basket?.image || '');
   const [members, setMembers] = useState<Member[]>(basket?.members || [{ userId: ME.id, role: 'admin', joinedAt: Date.now(), status: 'accepted' }]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showFriendPicker, setShowFriendPicker] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const availableFriends = useMemo(() => {
+    return state.friends.filter(f => f.status === 'friend' && !members.some(m => m.userId === f.id));
+  }, [state.friends, members]);
 
   const creatorName = useMemo(() => {
     if (!basket) return ME.name;
@@ -998,6 +1713,11 @@ const BasketFormScreen = ({ state, dispatch, isEdit = false }: { state: AppState
     }
   };
 
+  const handleAddFriendToBasket = (friend: User) => {
+    setMembers([...members, { userId: friend.id, role: 'contributor', joinedAt: Date.now(), status: 'pending' }]);
+    setShowFriendPicker(false);
+  };
+
   const handleClone = () => {
     if (!basket) return;
     const clonedBasket: Basket = {
@@ -1014,6 +1734,20 @@ const BasketFormScreen = ({ state, dispatch, isEdit = false }: { state: AppState
     };
     dispatch({ type: 'ADD_BASKET', basket: clonedBasket });
     navigate(`/edit-basket/${clonedBasket.id}`);
+  };
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    if (!file.type.startsWith('image/')) return;
+    const att = await processFile(file);
+    setImageUrl(att.url);
+  };
+
+  const onDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (isAdmin) await handleFiles(e.dataTransfer.files);
   };
 
   return (
@@ -1040,26 +1774,75 @@ const BasketFormScreen = ({ state, dispatch, isEdit = false }: { state: AppState
 
         <div className="space-y-3">
           <p className="text-xs font-black text-[#8E8E93] uppercase tracking-widest px-2">Appearance</p>
-          <div className="bg-white p-4 rounded-3xl shadow-sm border border-black/5 space-y-4">
-            {imageUrl && (
-              <div className="relative aspect-video rounded-2xl overflow-hidden bg-[#F2F2F7] border border-black/5">
+          <div 
+            className={`bg-white p-4 rounded-3xl shadow-sm border-2 transition-all ${isDragging ? 'border-blue-400 bg-blue-50 scale-[1.02]' : 'border-black/5'}`}
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={onDrop}
+          >
+            <div className="relative aspect-video rounded-2xl overflow-hidden bg-[#F2F2F7] border border-black/5 mb-4 group">
+              {imageUrl ? (
                 <img src={imageUrl} className="w-full h-full object-cover" alt="Box preview" />
-                <button onClick={() => setImageUrl('')} className="absolute top-2 right-2 bg-black/60 text-white p-1.5 rounded-full backdrop-blur-md">
-                  <Plus className="rotate-45" size={16} />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 gap-2">
+                  <ImageIcon size={48} strokeWidth={1} />
+                  <p className="text-[10px] font-black uppercase tracking-widest">No Image Set</p>
+                </div>
+              )}
+              {isAdmin && imageUrl && (
+                <button onClick={() => setImageUrl('')} className="absolute top-2 right-2 bg-black/60 text-white p-1.5 rounded-full backdrop-blur-md active:scale-90 transition-transform">
+                  <X size={16} />
                 </button>
-              </div>
-            )}
+              )}
+              {isDragging && (
+                <div className="absolute inset-0 bg-[#FF3B30]/10 flex items-center justify-center">
+                  <div className="bg-white px-4 py-2 rounded-full shadow-lg font-black text-[#FF3B30] uppercase text-[12px] tracking-widest">Drop Image Here</div>
+                </div>
+              )}
+            </div>
+
             {isAdmin ? (
-              <div className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-dashed border-gray-200">
-                <ImageIcon className="text-[#8E8E93]" size={20} />
-                <input 
-                  className="bg-transparent flex-1 text-[14px] font-medium outline-none" 
-                  placeholder="Paste Image URL..." 
-                  value={imageUrl} 
-                  onChange={e => setImageUrl(e.target.value)} 
-                />
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <input 
+                    className="bg-[#F2F2F7] flex-1 text-[14px] font-medium outline-none p-3 rounded-xl border border-transparent focus:border-black/5" 
+                    placeholder="Paste Image URL..." 
+                    value={imageUrl} 
+                    onChange={e => setImageUrl(e.target.value)} 
+                  />
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="bg-black text-white p-3 rounded-xl active:scale-95 transition-transform"
+                  >
+                    <Upload size={18} />
+                  </button>
+                  <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={(e) => handleFiles(e.target.files)} />
+                </div>
+                
+                <div className="space-y-2 pt-2">
+                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-1">Design Presets</p>
+                  <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                    {DESIGN_PRESETS.map((preset, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setImageUrl(preset)}
+                        className={`flex-shrink-0 w-12 h-12 rounded-xl overflow-hidden border-2 transition-all active:scale-90 ${imageUrl === preset ? 'border-[#FF3B30]' : 'border-transparent'}`}
+                      >
+                        <img src={preset} className="w-full h-full object-cover" alt="" />
+                      </button>
+                    ))}
+                    <button 
+                      onClick={() => setImageUrl(`https://api.dicebear.com/7.x/shapes/svg?seed=${Math.random()}`)}
+                      className="flex-shrink-0 w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 active:scale-90 transition-all"
+                    >
+                      <Palette size={20} />
+                    </button>
+                  </div>
+                </div>
               </div>
-            ) : imageUrl && <div className="text-[14px] text-[#8E8E93] text-center font-bold uppercase tracking-tight">Only administrators can change the image.</div>}
+            ) : (
+              imageUrl && <div className="text-[14px] text-[#8E8E93] text-center font-bold uppercase tracking-tight">Read-only view</div>
+            )}
           </div>
         </div>
 
@@ -1084,7 +1867,41 @@ const BasketFormScreen = ({ state, dispatch, isEdit = false }: { state: AppState
         </div>
 
         <div className="space-y-3">
-          <p className="text-xs font-black text-[#8E8E93] uppercase tracking-widest px-2">Members ({members.length})</p>
+          <div className="flex items-center justify-between px-2">
+            <p className="text-xs font-black text-[#8E8E93] uppercase tracking-widest">Members ({members.length})</p>
+            {isAdmin && (
+              <button 
+                onClick={() => setShowFriendPicker(!showFriendPicker)} 
+                className="text-[11px] font-black uppercase text-[#FF3B30] flex items-center gap-1 hover:opacity-70 transition-opacity"
+              >
+                <UserPlus size={14}/> Add Member
+              </button>
+            )}
+          </div>
+          
+          {showFriendPicker && (
+            <div className="bg-[#F2F2F7] p-4 rounded-3xl space-y-3 animate-slide-up">
+              <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Select from Connections</p>
+              {availableFriends.length > 0 ? (
+                <div className="space-y-2">
+                  {availableFriends.map(friend => (
+                    <button 
+                      key={friend.id} 
+                      onClick={() => handleAddFriendToBasket(friend)}
+                      className="w-full flex items-center gap-3 p-2 bg-white rounded-2xl border border-black/5 active:scale-95 transition-all shadow-sm"
+                    >
+                      <img src={friend.avatar} className="w-8 h-8 rounded-full border border-gray-100" />
+                      <span className="font-bold text-[14px] text-gray-800">{friend.name}</span>
+                      <Plus size={16} className="ml-auto text-gray-400" />
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[12px] text-gray-400 italic">No available friends to add.</p>
+              )}
+            </div>
+          )}
+
           <div className="space-y-2">
             {members.map(m => {
               const u = m.userId === ME.id ? ME : state.friends.find(f => f.id === m.userId);
@@ -1160,8 +1977,17 @@ const FeedScreen = ({ state, dispatch }: { state: AppState, dispatch: any }) => 
       a.userName.toLowerCase().includes(search.toLowerCase()) ||
       a.targetName.toLowerCase().includes(search.toLowerCase()) ||
       a.type.toLowerCase().includes(search.toLowerCase())
-    ).sort((a, b) => b.timestamp - a.timestamp);
+    ).sort((a, b) => a.timestamp - b.timestamp); // Sorted oldest to latest as requested
   }, [state.activities, search]);
+
+  useEffect(() => {
+    if (scrollRef.current && filteredActivities.length > 0) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, [filteredActivities.length]);
 
   const renderActivity = (activity: Activity) => {
     const iconClass = "w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm";
@@ -1195,7 +2021,7 @@ const FeedScreen = ({ state, dispatch }: { state: AppState, dispatch: any }) => 
           <Icon size={20} />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-[14px] leading-snug text-gray-800 font-medium">
+          <div className="text-[15px] leading-snug text-gray-800 font-bold">
             <span className="font-black text-black">{activity.userId === ME.id ? 'You' : activity.userName}</span>
             {' '}{content}
           </div>
@@ -1235,7 +2061,7 @@ const FeedScreen = ({ state, dispatch }: { state: AppState, dispatch: any }) => 
           filteredActivities.map(renderActivity)
         ) : (
           <div className="p-24 text-center space-y-4">
-             <p className="text-[#8E8E93] font-black uppercase tracking-widest text-[12px]">No activity yet.</p>
+             <p className="text-[#8E8E93] font-black uppercase tracking-widest text-[11px]">No activity yet.</p>
           </div>
         )}
       </div>
@@ -1250,15 +2076,20 @@ const MembersScreen = ({ state, dispatch }: { state: AppState, dispatch: any }) 
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const sortedMemberList = useMemo(() => {
-    const all = [ME, ...state.friends];
-    const filtered = all.filter(f => 
-      (f.id === ME.id || f.status !== 'none') &&
-      (f.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-       f.email.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
-    const meEntry = filtered.find(f => f.id === ME.id);
-    const others = filtered.filter(f => f.id !== ME.id).sort((a, b) => a.name.localeCompare(b.name));
-    return meEntry ? [meEntry, ...others] : others;
+    // Start with others alphabetically sorted by name
+    const others = state.friends
+      .filter(f => f.status !== 'none' && (
+        f.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        f.email.toLowerCase().includes(searchQuery.toLowerCase())
+      ))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    // Check if current user matches search
+    const matchesMe = ME.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                      ME.email.toLowerCase().includes(searchQuery.toLowerCase());
+
+    // User at the top, followed by the sorted list of friends
+    return matchesMe ? [ME, ...others] : others;
   }, [state.friends, searchQuery]);
 
   const getStatusLabel = (member: User) => {
@@ -1277,7 +2108,7 @@ const MembersScreen = ({ state, dispatch }: { state: AppState, dispatch: any }) 
       <div className="p-4 space-y-4">
         <div className="bg-[#F2F2F7] rounded-xl h-12 flex items-center px-4 gap-3 shadow-sm border border-black/5 relative">
           <SearchIcon className="text-[#8E8E93] flex-shrink-0" size={18} />
-          <input placeholder="Search members..." className="bg-transparent outline-none w-full font-bold pr-8" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+          <input placeholder="Search members..." className="bg-transparent outline-none w-full font-medium pr-8 text-[17px]" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
           {searchQuery && (
             <button onClick={() => setSearchQuery('')} className="absolute right-3 p-1 text-[#8E8E93] active:opacity-50">
               <CircleX size={18} fill="currentColor" className="text-gray-300" />
@@ -1394,7 +2225,7 @@ const MemberDetailScreen = ({ state, dispatch }: { state: AppState, dispatch: an
                   <div className="w-10 h-10 rounded-xl bg-[#F2F2F7] flex items-center justify-center overflow-hidden border border-black/5 shadow-sm">
                     {b.image ? <img src={b.image} className="w-full h-full object-cover" alt="" /> : <Layers className="text-gray-300" size={20} />}
                   </div>
-                  <span className="font-bold text-gray-800">{b.title}</span>
+                  <span className="font-bold text-gray-800 text-[15px]">{b.title}</span>
                 </div>
                 <ChevronRightIcon size={18} className="text-gray-300" />
               </div>
@@ -1429,7 +2260,7 @@ const SearchScreen = ({ state, dispatch }: { state: AppState, dispatch: any }) =
       <div className="p-4 space-y-4">
         <div className="bg-[#F2F2F7] rounded-xl h-12 flex items-center px-4 gap-3 shadow-sm border border-black/5 relative">
           <SearchIcon size={18} className="text-[#8E8E93] flex-shrink-0" />
-          <input placeholder="Search Boxxit!..." className="bg-transparent w-full text-[17px] font-bold outline-none placeholder:text-[#8E8E93] pr-8" autoFocus value={query} onChange={e => setQuery(e.target.value)} />
+          <input placeholder="Search Boxxit!..." className="bg-transparent w-full text-[17px] font-medium outline-none placeholder:text-[#8E8E93] pr-8 text-[17px]" autoFocus value={query} onChange={e => setQuery(e.target.value)} />
           {query && (
             <button onClick={() => setQuery('')} className="absolute right-3 p-1 text-[#8E8E93] active:opacity-50">
               <CircleX size={18} fill="currentColor" className="text-gray-300" />
@@ -1453,7 +2284,7 @@ const SearchScreen = ({ state, dispatch }: { state: AppState, dispatch: any }) =
                     <div className="w-10 h-10 rounded-xl bg-[#F2F2F7] flex items-center justify-center border border-black/5 overflow-hidden shadow-sm">
                       {b.image ? <img src={b.image} className="w-full h-full object-cover" alt="" /> : <Layers className="text-gray-300" size={20} />}
                     </div>
-                    <div className="min-w-0 flex-1"><p className="font-bold text-[15px] truncate text-gray-900">{b.title}</p><p className="text-[12px] text-[#8E8E93] font-medium truncate">{b.description}</p></div>
+                    <div className="min-w-0 flex-1"><p className="font-bold text-[15px] truncate text-gray-900">{b.title}</p><p className="text-[11px] text-[#8E8E93] font-black uppercase tracking-widest truncate">{b.description}</p></div>
                     <ChevronRightIcon size={18} className="text-gray-300" />
                   </div>
                 ))}
@@ -1468,9 +2299,9 @@ const SearchScreen = ({ state, dispatch }: { state: AppState, dispatch: any }) =
                 {results.cards.map(c => (
                   <div key={c.id} onClick={() => navigate(`/basket/${c.basketIds[0]}`)} className="p-4 bg-white rounded-2xl flex items-center gap-3 active:bg-gray-50 transition-all cursor-pointer border border-gray-100 shadow-sm">
                     <div className="w-10 h-10 rounded-xl bg-[#F2F2F7] flex items-center justify-center border border-black/5 overflow-hidden shadow-sm">
-                      {c.attachments[0] ? <img src={c.attachments[0].url} className="w-full h-full object-cover" alt="" /> : <FileIcon className="text-gray-400" size={18} />}
+                      {c.attachments[0] ? <img src={c.attachments[0].type === 'link' ? getLinkThumbnail(c.attachments[0].url) || '' : c.attachments[0].url} className="w-full h-full object-cover" alt="" /> : <FileIcon className="text-gray-400" size={18} />}
                     </div>
-                    <div className="min-w-0 flex-1"><p className="font-bold text-[15px] truncate text-gray-900">{c.text}</p><p className="text-[10px] text-[#FF3B30] font-black uppercase tracking-widest">In: {state.baskets.find(b => b.id === c.basketIds[0])?.title}</p></div>
+                    <div className="min-w-0 flex-1"><p className="font-bold text-[15px] truncate text-gray-900">{c.text}</p><p className="text-[11px] text-[#FF3B30] font-black uppercase tracking-widest">In: {state.baskets.find(b => b.id === c.basketIds[0])?.title}</p></div>
                     <ChevronRightIcon size={18} className="text-gray-300" />
                   </div>
                 ))}
@@ -1485,7 +2316,7 @@ const SearchScreen = ({ state, dispatch }: { state: AppState, dispatch: any }) =
                 {results.members.map(m => (
                   <div key={m.id} onClick={() => navigate(`/member/${m.id}`)} className="p-4 bg-white rounded-2xl flex items-center gap-3 active:bg-gray-50 transition-all cursor-pointer border border-gray-100 shadow-sm">
                     <img src={m.avatar} className="w-10 h-10 rounded-full border border-gray-100 shadow-sm" alt="" />
-                    <div className="min-w-0 flex-1"><p className="font-bold text-[15px] truncate text-gray-900">{m.name}</p><p className="text-[12px] text-[#8E8E93] font-bold uppercase tracking-tight truncate">{m.email}</p></div>
+                    <div className="min-w-0 flex-1"><p className="font-bold text-[15px] truncate text-gray-900">{m.name}</p><p className="text-[11px] text-[#8E8E93] font-black uppercase tracking-widest truncate">{m.email}</p></div>
                     <ChevronRightIcon size={18} className="text-gray-300" />
                   </div>
                 ))}
@@ -1541,8 +2372,10 @@ const MainApp = () => {
           return { ...prev, baskets: newBaskets };
         case 'ADD_CARD':
           const targetBox = prev.baskets.find(b => b.id === action.card.basketIds[0]);
+          const maxOrder = prev.cards.reduce((max, c) => Math.max(max, c.order || 0), 0);
+          const cardWithOrder = { ...action.card, order: maxOrder + 1 };
           activity = { id: Math.random().toString(), type: 'card_added', userId: ME.id, userName: ME.name, targetId: targetBox?.id || 'none', targetName: targetBox?.title || 'Box', timestamp: Date.now() };
-          return { ...prev, cards: [action.card, ...prev.cards], activities: [activity, ...prev.activities] };
+          return { ...prev, cards: [...prev.cards, cardWithOrder], activities: [activity, ...prev.activities] };
         case 'UPDATE_CARD':
           newCards = prev.cards.map(c => c.id === action.cardId ? { ...c, ...action.updates } : c);
           return { ...prev, cards: newCards };
@@ -1560,6 +2393,25 @@ const MainApp = () => {
              return c;
           });
           return { ...prev, cards: newCards, activities: activity ? [activity, ...prev.activities] : prev.activities };
+        case 'REORDER_CARDS':
+          const basketId = action.basketId;
+          const boxCards = prev.cards.filter(c => c.basketIds.includes(basketId)).sort((a, b) => {
+            if (a.isPinned && !b.isPinned) return -1;
+            if (!a.isPinned && b.isPinned) return 1;
+            if ((a.order ?? 0) !== (b.order ?? 0)) return (a.order || 0) - (b.order || 0);
+            return (a.timestamp || 0) - (b.timestamp || 0);
+          });
+          const sIdx = boxCards.findIndex(c => c.id === action.sourceId);
+          const tIdx = boxCards.findIndex(c => c.id === action.targetId);
+          if (sIdx === -1 || tIdx === -1) return prev;
+          
+          const result = [...boxCards];
+          const [removed] = result.splice(sIdx, 1);
+          result.splice(tIdx, 0, removed);
+          
+          const orderMap = new Map(result.map((c, i) => [c.id, i + 1]));
+          newCards = prev.cards.map(c => orderMap.has(c.id) ? { ...c, order: orderMap.get(c.id) } : c);
+          return { ...prev, cards: newCards };
         case 'INVITE_FRIEND':
           newFriends = prev.friends.map(f => f.id === action.userId ? { ...f, status: 'pending_sent' } : f);
           return { ...prev, friends: newFriends };
